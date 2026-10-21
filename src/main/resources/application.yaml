@@ -3,7 +3,7 @@ spring:
     name: Multi-Tenant
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/multiTenant_db
+    url: jdbc:postgresql://localhost:5432/multitenant_db
     username: postgres
     password: postgres
     driver-class name: org.postgresql.Driver

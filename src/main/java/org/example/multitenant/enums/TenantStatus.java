@@ -1,6 +1,6 @@
 package org.example.multitenant.enums;
 
-public enum Status {
+public enum TenantStatus {
     ACTIVE,
-    INACTIVE
+    SUSPENDED
 }
