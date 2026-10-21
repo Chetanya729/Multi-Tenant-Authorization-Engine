@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: Multi-Tenant
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/multitenant_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
