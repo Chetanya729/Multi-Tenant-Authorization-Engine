@@ -64,3 +64,39 @@ CREATE TABLE permissions(
     CONSTRAINT uk_permissions_code UNIQUE (code),
     CONSTRAINT ck_permissions_code_format CHECK ( code ~ ^[a-z]+(-[a-z]+)*:[a-z]+(-[a-z]+)*$ )
 );
+
+CREATE TABLE user_roles (
+    user_id      BIGINT NOT NULL,
+    role_id      BIGINT NOT NULL,
+    assigned_by  BIGINT,
+    assigned_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT pk_user_roles   PRIMARY KEY (user_id, role_id),
+    CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id)
+        REFERENCES users (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_user_roles_role  FOREIGN KEY (role_id)
+        REFERENCES roles (role_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_user_roles_assigned_by FOREIGN KEY (assigned_by)
+        REFERENCES users (user_id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX ind_user_role ON user_roles(role_id);
+
+CREATE TABLE role_permissions(
+    role_id BIGINT NOT NULL ,
+    permission_id BIGINT NOT NULL,
+    granted_by BIGINT,
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT pk_roles_permissions PRIMARY KEY (role_id, permission_id),
+    CONSTRAINT fk_roles_permissions_user FOREIGN KEY (role_id)
+                             REFERENCES roles(role_id) ON DELETE RESTRICT ,
+    CONSTRAINT fk_permissions_roles_role FOREIGN KEY (permission_id)
+                             REFERENCES permissions(permission_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_user_granted FOREIGN KEY (granted_by)
+                             REFERENCES users(user_id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX ind_role_permissions ON role_permissions(permission_id);
+
+
