@@ -1,6 +1,8 @@
 spring:
   application:
     name: Multi-Tenant
+  profiles:
+    active: local
 
   datasource:
     url: jdbc:postgresql://localhost:5432/multitenant_db
