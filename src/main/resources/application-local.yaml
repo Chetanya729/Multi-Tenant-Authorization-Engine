@@ -11,7 +11,7 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: true
 
   flyway:
@@ -22,4 +22,4 @@ spring:
     out-of-order: false
     clean-disabled: true
     baseline-on-migrate: true
-    baseline-version: 0
+    baseline-version: 1
