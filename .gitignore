@@ -33,4 +33,4 @@ build/
 .vscode/
 
 # Ignore a specific file inside a specific folder
-/Volumes/ExternalSSD/Downloads/Multi-Tenant/src/main/resources/application-local.yaml
+src/main/resources/application-local.yaml
