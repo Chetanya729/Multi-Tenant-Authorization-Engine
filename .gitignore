@@ -32,5 +32,5 @@ build/
 ### VS Code ###
 .vscode/
 
-# Ignore a specific file
-src/main/resources/application-local.yaml
+# Ignore a specific file inside a specific folder
+/Volumes/ExternalSSD/Downloads/Multi-Tenant/src/main/resources/application-local.yaml
