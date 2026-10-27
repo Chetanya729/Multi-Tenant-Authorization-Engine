@@ -37,6 +37,7 @@ public class RolePermissionEntity {
     private Instant grantedAt;
 
     public RolePermissionEntity(RoleEntity role, PermissionEntity permission, UserEntity grantedBy) {
+        this.id = new RolePermissionId(role.getId(), permission.getId());
         this.role = role;
         this.permission = permission;
         this.grantedBy = grantedBy;

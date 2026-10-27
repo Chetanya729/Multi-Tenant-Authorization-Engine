@@ -37,6 +37,7 @@ public class UserRoleEntity {
     private Instant assignedAt;
 
     public UserRoleEntity(UserEntity user, RoleEntity role, UserEntity assignedBy) {
+        this.id = new UserRoleId(user.getId(), role.getId());
         this.user = user;
         this.role = role;
         this.assignedBy = assignedBy;
