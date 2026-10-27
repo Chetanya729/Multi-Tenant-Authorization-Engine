@@ -1,7 +1,6 @@
 package org.example.multitenant.service;
 
 import org.example.multitenant.config.BootstrapProperties;
-import org.example.multitenant.config.PasswordConfig;
 import org.example.multitenant.entity.RoleEntity;
 import org.example.multitenant.entity.TenantEntity;
 import org.example.multitenant.entity.UserEntity;
