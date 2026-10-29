@@ -15,8 +15,8 @@ import java.util.Locale;
 
 
 @Service
-@Transactional(readOnly = true)
 public class CustomUserDetailsService implements UserDetailsService {
+
     private final UserRepo userRepo;
 
     public CustomUserDetailsService(UserRepo userRepo) {
@@ -29,13 +29,13 @@ public class CustomUserDetailsService implements UserDetailsService {
         String email = username.trim().toLowerCase(Locale.ROOT);
 
         UserEntity user = userRepo.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"+ email));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
         boolean tenantSuspended = user.getTenant().getStatus() != TenantStatus.ACTIVE;
 
         return User.withUsername(user.getEmail())
                 .password(user.getPasswordHash())
-                .disabled(user.isEnabled())
+                .disabled(!user.isEnabled())
                 .accountLocked(tenantSuspended)
                 .authorities(List.of())
                 .build();

@@ -1,12 +1,5 @@
 package org.example.multitenant.dto.Response;
 
-
-import java.time.Duration;
-
-public class TokenResponse {
-
-    private  String accessToken;
-    private String tokenType;
-    private Duration expiresIn;
-    private String refreshToken;
+// Returned by POST /api/auth/login. expiresIn is the access token's lifetime in seconds (e.g. 300).
+public record TokenResponse(String accessToken, String tokenType, long expiresIn, String refreshToken) {
 }
