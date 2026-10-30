@@ -1,4 +1,4 @@
-package org.example.multitenant.config;
+package org.example.multitenant.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,15 +18,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
-public class TokenAuthorizationFilter extends OncePerRequestFilter {
+public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final Logger LOG = LoggerFactory.getLogger(TokenAuthorizationFilter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TokenAuthenticationFilter.class);
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final AccessTokenStore accessTokenStore;
     private final TokenGenerator tokenGenerator;
 
-    public TokenAuthorizationFilter(AccessTokenStore accessTokenStore, TokenGenerator tokenGenerator) {
+    public TokenAuthenticationFilter(AccessTokenStore accessTokenStore, TokenGenerator tokenGenerator) {
         this.accessTokenStore = accessTokenStore;
         this.tokenGenerator = tokenGenerator;
     }

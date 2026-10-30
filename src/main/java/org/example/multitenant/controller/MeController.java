@@ -1,6 +1,6 @@
 package org.example.multitenant.controller;
 
-import org.example.multitenant.config.AuthenticatedUser;
+import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.dto.Response.MeResponse;
 import org.example.multitenant.service.UserService;
 import org.springframework.http.ResponseEntity;

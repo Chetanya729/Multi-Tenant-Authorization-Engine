@@ -1,6 +1,7 @@
 package org.example.multitenant.config;
 
 import jakarta.servlet.DispatcherType;
+import org.example.multitenant.security.TokenAuthenticationFilter;
 import org.example.multitenant.service.AccessTokenStore;
 import org.example.multitenant.service.CustomUserDetailsService;
 import org.example.multitenant.service.TokenGenerator;
@@ -45,7 +46,7 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 
-                .addFilterBefore(new TokenAuthorizationFilter(accessTokenStore, tokenGenerator),
+                .addFilterBefore(new TokenAuthenticationFilter(accessTokenStore, tokenGenerator),
                         UsernamePasswordAuthenticationFilter.class)
 
                 .authorizeHttpRequests(auth -> auth
@@ -53,7 +54,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll());
-
         return http.build();
     }
 }
