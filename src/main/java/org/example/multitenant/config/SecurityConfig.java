@@ -11,9 +11,11 @@ import org.example.multitenant.service.TokenGenerator;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -25,7 +27,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableConfigurationProperties(TokenProperties.class)
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
+
+    private static final String CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; "
+            + "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
     @Bean
     public AuthenticationManager authenticationManager(CustomUserDetailsService customUserDetailsService,
@@ -47,12 +53,15 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new JsonAuthenticationEntryPoint())
                         .accessDeniedHandler(new JsonAccessDeniedHandler()))
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY)))
                 .addFilterBefore(new TokenAuthenticationFilter(accessTokenStore, tokenGenerator),
                         UsernamePasswordAuthenticationFilter.class)
 
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/css/**", "/js/**", "/favicon.svg").permitAll()
                         .requestMatchers("/api/**").access(permissionAuthorizationManager)
                         .anyRequest().denyAll());
         return http.build();

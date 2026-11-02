@@ -5,6 +5,7 @@ import org.example.multitenant.entity.TenantEntity;
 import org.example.multitenant.entity.UserEntity;
 import org.example.multitenant.enums.TenantType;
 import org.example.multitenant.repository.UserRepo;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +22,13 @@ public class UserService {
         this.effectivePermissionService = effectivePermissionService;
     }
 
+    @PreAuthorize("@dutyChecker.has('user:create')")
     public void createUser() {
+
+    }
+
+    @PreAuthorize("@dutyChecker.has('user:read')")
+    public void getUserPermissions(){
 
     }
 
