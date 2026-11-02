@@ -10,5 +10,5 @@ import java.lang.annotation.*;
 public @interface RequiresPermission {
 
     String value();
-    PermissionScope scope() default PermissionScope.PLATFORM;
+    PermissionScope scope() default PermissionScope.TENANT;
 }

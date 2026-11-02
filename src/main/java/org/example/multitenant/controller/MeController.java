@@ -1,5 +1,6 @@
 package org.example.multitenant.controller;
 
+import org.example.multitenant.security.AuthenticatedOnly;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.dto.Response.MeResponse;
 import org.example.multitenant.service.UserService;
@@ -18,6 +19,8 @@ public class MeController {
     public MeController(UserService userService) {
         this.userService = userService;
     }
+
+    @AuthenticatedOnly
     @GetMapping("/me")
     public ResponseEntity<MeResponse> me(@AuthenticationPrincipal AuthenticatedUser user) {
         return ResponseEntity.ok(userService.getProfile(user.userId()));

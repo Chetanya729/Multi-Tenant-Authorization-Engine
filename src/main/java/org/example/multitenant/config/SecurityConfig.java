@@ -1,6 +1,9 @@
 package org.example.multitenant.config;
 
 import jakarta.servlet.DispatcherType;
+import org.example.multitenant.security.JsonAccessDeniedHandler;
+import org.example.multitenant.security.JsonAuthenticationEntryPoint;
+import org.example.multitenant.security.PermissionAuthorizationManager;
 import org.example.multitenant.security.TokenAuthenticationFilter;
 import org.example.multitenant.service.AccessTokenStore;
 import org.example.multitenant.service.CustomUserDetailsService;
@@ -8,7 +11,6 @@ import org.example.multitenant.service.TokenGenerator;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -18,7 +20,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
@@ -36,7 +37,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, AccessTokenStore accessTokenStore,
-                                                   TokenGenerator tokenGenerator) throws Exception {
+                                                   TokenGenerator tokenGenerator, PermissionAuthorizationManager permissionAuthorizationManager) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -44,15 +45,15 @@ public class SecurityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-
+                        .authenticationEntryPoint(new JsonAuthenticationEntryPoint())
+                        .accessDeniedHandler(new JsonAccessDeniedHandler()))
                 .addFilterBefore(new TokenAuthenticationFilter(accessTokenStore, tokenGenerator),
                         UsernamePasswordAuthenticationFilter.class)
 
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
-                        .requestMatchers("/api/**").authenticated()
+                        .requestMatchers("/api/**").access(permissionAuthorizationManager)
                         .anyRequest().denyAll());
         return http.build();
     }
