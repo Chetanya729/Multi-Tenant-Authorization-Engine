@@ -43,6 +43,12 @@ public class UserEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "temporary_password", nullable = false)
+    private boolean temporaryPassword;
+
+    @Column(name = "temp_pass_expiry_at")
+    private Instant tempPassExpiryAt;
+
     public void setEmail(String email) {
         this.email = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }

@@ -1,5 +1,7 @@
 package org.example.multitenant.service;
 
+import jakarta.validation.Valid;
+import org.example.multitenant.dto.Request.UserRequest;
 import org.example.multitenant.dto.Response.MeResponse;
 import org.example.multitenant.entity.TenantEntity;
 import org.example.multitenant.entity.UserEntity;
@@ -23,7 +25,7 @@ public class UserService {
     }
 
     @PreAuthorize("@dutyChecker.has('user:create')")
-    public void createUser() {
+    public void createUser(@Valid UserRequest request) {
 
     }
 
