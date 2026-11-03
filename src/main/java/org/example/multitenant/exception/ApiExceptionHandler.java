@@ -3,6 +3,7 @@ package org.example.multitenant.exception;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -54,5 +55,11 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, String>> handleUnreadable(HttpMessageNotReadableException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", "Malformed request body"));
+    }
+
+    @ExceptionHandler(CredentialsExpiredException.class)
+    public ResponseEntity<Map<String, String>> handleCredentialsExpired(CredentialsExpiredException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "PASSWORD_CHANGE_REQUIRED"));
     }
 }

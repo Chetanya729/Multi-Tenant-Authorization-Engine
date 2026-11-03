@@ -1,24 +1,20 @@
 package org.example.multitenant.dto.Request;
 
 import jakarta.validation.constraints.Email;
-import lombok.*;
-import org.example.multitenant.enums.PermissionScope;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class UserRequest {
+import java.util.Set;
 
-    @Email @NonNull
-    private  String email;
+public record UserRequest(
+        @NotBlank @Email @Size(max = 150) String email,
+        @NotBlank @Size(min = 12, max = 72) String temporaryPassword,
+        @NotNull Set<@NotNull @Positive Long> roleIds) {
 
-    @NonNull
-    private String password;
-
-
-
-
-
-
+    @Override
+    public String toString() {
+        return "UserRequest[email=" + email + ", roleIds=" + roleIds + "]";
+    }
 }

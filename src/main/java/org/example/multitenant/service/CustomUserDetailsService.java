@@ -10,6 +10,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
@@ -32,11 +33,16 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
         boolean tenantSuspended = user.getTenant().getStatus() != TenantStatus.ACTIVE;
+        boolean mustChange = user.isTemporaryPassword();
+        boolean tempExpired = mustChange && user.getTempPassExpiryAt() != null
+                && user.getTempPassExpiryAt().isBefore(Instant.now());
 
         return User.withUsername(user.getEmail())
                 .password(user.getPasswordHash())
                 .disabled(!user.isEnabled())
                 .accountLocked(tenantSuspended)
+                .accountExpired(tempExpired)
+                .credentialsExpired(mustChange)
                 .authorities(List.of())
                 .build();
     }

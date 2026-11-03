@@ -60,7 +60,7 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/first-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/css/**", "/js/**", "/favicon.svg").permitAll()
                         .requestMatchers("/api/**").access(permissionAuthorizationManager)
                         .anyRequest().denyAll());

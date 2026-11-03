@@ -1,6 +1,8 @@
 package org.example.multitenant.service;
 
+import jakarta.validation.Valid;
 import org.example.multitenant.dto.Request.LoginRequest;
+import org.example.multitenant.dto.Request.NewLoginRequest;
 import org.example.multitenant.dto.Response.TokenResponse;
 import org.example.multitenant.entity.UserEntity;
 import org.example.multitenant.repository.UserRepo;

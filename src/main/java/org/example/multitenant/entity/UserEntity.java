@@ -26,10 +26,10 @@ public class UserEntity {
     @JoinColumn(name = "tenant_id", nullable = false)
     private TenantEntity tenant;
 
-    @Column(nullable = false, unique = true, length = 254)
+    @Column(nullable = false, unique = true, length = 150)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 100)
+    @Column(name = "password_hash", nullable = false, length = 150)
     private String passwordHash;
 
     @Column(nullable = false)
