@@ -6,5 +6,5 @@ import java.time.Duration;
 
 
 @ConfigurationProperties( prefix = "app.security.tokens")
-public record TokenProperties(Duration accessTokenTtl, Duration refreshTokenTtl) {
+public record TokenProperties(Duration accessTokenTtl, Duration refreshTokenTtl, Duration temporaryPasswordTtl) {
 }

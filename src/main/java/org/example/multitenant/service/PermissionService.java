@@ -6,13 +6,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class PermissionService {
 
-    @PreAuthorize("@dutyChecker.has('permissions:create')")
+    @PreAuthorize("@dutyChecker.has('permission:create')")
     public void createPermission(){
 
     }
 
-    @PreAuthorize("@dutyChecker.has(permissions:delete)")
-    public void deletePermissions(){
+    @PreAuthorize("@dutyChecker.has('permission:deactivate')")
+    public void deactivatePermission(){
 
     }
 
