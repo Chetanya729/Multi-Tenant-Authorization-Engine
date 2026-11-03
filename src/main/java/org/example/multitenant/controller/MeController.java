@@ -25,4 +25,6 @@ public class MeController {
     public ResponseEntity<MeResponse> me(@AuthenticationPrincipal AuthenticatedUser user) {
         return ResponseEntity.ok(userService.getProfile(user.userId()));
     }
+
+
 }

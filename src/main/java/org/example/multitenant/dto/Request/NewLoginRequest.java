@@ -10,10 +10,10 @@ public record NewLoginRequest(
         @Email @NotBlank
         String email,
 
-        @NotBlank@Size(min=8, max = 72)
+        @NotBlank@Size(min=12, max = 72)
         String temporaryPassword,
 
-        @NotBlank@Size(min=8, max = 72)
+        @NotBlank@Size(min=12, max = 72)
         String newPassword) {
 
     @Override

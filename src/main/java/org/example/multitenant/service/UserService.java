@@ -3,6 +3,7 @@ package org.example.multitenant.service;
 import org.example.multitenant.config.TokenProperties;
 import org.example.multitenant.dto.Request.UserRequest;
 import org.example.multitenant.dto.Response.MeResponse;
+import org.example.multitenant.dto.Response.UserPermissionResponse;
 import org.example.multitenant.dto.Response.UserResponse;
 import org.example.multitenant.entity.RoleEntity;
 import org.example.multitenant.entity.TenantEntity;
@@ -51,12 +52,20 @@ public class UserService {
         this.dutyChecker = dutyChecker;
     }
 
+    private UserEntity loadActor(AuthenticatedUser actor) {
+        UserEntity actorEntity = userRepo.findById(actor.userId())
+                .orElseThrow(() -> new IllegalStateException("Authenticated user " + actor.userId() + " no longer exists"));
+        if (!Objects.equals(actorEntity.getTenant().getId(), actor.tenantId())) {
+            throw new AccessDeniedException("Access Denied");
+        }
+        return actorEntity;
+    }
+
     @Transactional
     @PreAuthorize("@dutyChecker.has('user:create')")
     public UserResponse createUser(UserRequest request , AuthenticatedUser user) {
+        UserEntity actorEntity = loadActor(user);
         List<RoleEntity> roles = new ArrayList<>();
-        UserEntity actorEntity = userRepo.findById(user.userId())
-                .orElseThrow(() -> new IllegalStateException("Authenticated user " + user.userId() + " no longer exists"));
         TenantEntity tenant = actorEntity.getTenant();
         if (!Objects.equals(tenant.getId(), user.tenantId())){
             throw new AccessDeniedException("Access Denied");
@@ -109,8 +118,26 @@ public class UserService {
     }
 
     @PreAuthorize("@dutyChecker.has('user:read')")
-    public void getUserPermissions(){
+    @Transactional(readOnly = true)
+    public UserPermissionResponse getUserPermissions(Long id , AuthenticatedUser user) {
+        TenantEntity tenant = loadActor(user).getTenant();
+        UserEntity target = userRepo.findByIdAndTenant(id, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
 
+        Set<String> roleNames = new TreeSet<>();
+        for (UserRoleEntity userRole : userRoleRepo.findAllByUser(target)) {
+            RoleEntity role = userRole.getRole();
+            if (role.isActive()) {
+                roleNames.add(role.getName());
+            }
+        }
+
+        Set<String> duties = new TreeSet<>(effectivePermissionService.userDutyCodes(target.getId()));
+        Set<String> platformDuties = tenant.getType() == TenantType.PLATFORM
+                ? new TreeSet<>(effectivePermissionService.platformDutyCodes(target.getId()))
+                : Set.of();
+
+        return new UserPermissionResponse(target.getId(), target.getEmail(), roleNames, duties, platformDuties);
     }
 
     @Transactional(readOnly = true)
