@@ -117,6 +117,8 @@ public class UserService {
                 savedUser.isTemporaryPassword(), savedUser.getTempPassExpiryAt(), roleNames, savedUser.getCreatedAt());
     }
 
+
+
     @PreAuthorize("@dutyChecker.has('user:read')")
     @Transactional(readOnly = true)
     public UserPermissionResponse getUserPermissions(Long id , AuthenticatedUser user) {
