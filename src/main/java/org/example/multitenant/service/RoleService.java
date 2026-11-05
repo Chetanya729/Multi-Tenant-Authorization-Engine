@@ -21,11 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 @Service
 public class RoleService {
@@ -92,41 +88,56 @@ public class RoleService {
     }
 
     @PreAuthorize("@dutyChecker.has('permission:assign')")
-    public RoleResponse grandDuty(Long roleId, Long permissionId, AuthenticatedUser actor) {
+    @Transactional
+    public RoleResponse grantDuty(Long roleId, Long permissionId, AuthenticatedUser actor) {
         UserEntity actorEntity = actorService.load(actor);
         TenantEntity tenant = actorEntity.getTenant();
-        if (roleRepo.findByIdAndTenant(roleId, tenant).isEmpty()) {
-            throw new ResourceNotFoundException("Role not found");
-        }
-        if (permissionRepo.findByIdAndTenant(permissionId, tenant).isEmpty()) {
-            throw new ResourceNotFoundException("Permission not found");
-        }
-        RoleEntity role = roleRepo.findById(roleId).orElseThrow(() -> new ResourceNotFoundException("Role not found"));
-        if (role.isSystem()){
+        RoleEntity role = roleRepo.findByIdAndTenant(roleId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
+        PermissionEntity permission = permissionRepo.findByIdAndTenant(permissionId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Permission not found"));
+        if (role.isSystem()) {
             throw new BadRequestException("System roles cannot be changed");
         }
-        PermissionEntity permission = permissionRepo.findById(permissionId).orElseThrow(() -> new ResourceNotFoundException("Permission not found"));
-        if (!role.isActive() || !permission.isActive()){
+        if (!role.isActive() || !permission.isActive()) {
             throw new BadRequestException("Role or permission is inactive");
         }
-        if (permission.isSystem() && !dutyChecker.has(permission.getCode())){
-            throw new AccessDeniedException("Access Denied");
+        if (permission.isSystem() && !dutyChecker.has(permission.getCode())) {
+            throw new AccessDeniedException("You cannot grant a duty you do not hold");
         }
-        if (rolePermissionRepo.existsByRoleAndPermission(role, permission)){
-            throw new BadRequestException("Permission already exists to the role");
+        if (rolePermissionRepo.existsByRoleAndPermission(role, permission)) {
+            throw new ConflictException("Duty already on this role");
         }
-        RolePermissionEntity rolePermissionEntity = new RolePermissionEntity();
-        rolePermissionEntity.setRole(role);
-        rolePermissionEntity.setPermission(permission);
-        RolePermissionEntity saved;
         try {
-            saved = rolePermissionRepo.saveAndFlush(rolePermissionEntity);
-        }catch (DataIntegrityViolationException e) {
-            throw  new ConflictException("Permission already exists");
+            rolePermissionRepo.saveAndFlush(new RolePermissionEntity(role, permission, actorEntity));
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("Duty already on this role");
         }
-        auditService.audit(tenant,actorEntity,"ROLE_PERMISSION_ASSIGNED","ROLE",String.valueOf(roleId),Map.of("roleName",role.getName(),"code", permission.getCode()));
+        auditService.audit(tenant, actorEntity, "ROLE_PERMISSION_ASSIGNED", "ROLE", String.valueOf(roleId),
+                Map.of("roleName", role.getName(), "code", permission.getCode()));
 
-        return toResponse(role,activeDutyCodes(role));
+        return toResponse(role, activeDutyCodes(role));
+    }
+
+    @PreAuthorize("@dutyChecker.has('permission:revoke')")
+    @Transactional
+    public RoleResponse revokeDuty(Long roleId, Long permissionId, AuthenticatedUser actor) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        RoleEntity role = roleRepo.findByIdAndTenant(roleId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
+        PermissionEntity permission = permissionRepo.findByIdAndTenant(permissionId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Permission not found"));
+        if (role.isSystem()) {
+            throw new BadRequestException("System roles cannot be changed");
+        }
+        RolePermissionEntity link = rolePermissionRepo.findByRoleAndPermission(role, permission)
+                .orElseThrow(() -> new ResourceNotFoundException("Duty is not on this role"));
+        rolePermissionRepo.delete(link);
+        auditService.audit(tenant, actorEntity, "ROLE_PERMISSION_REVOKED", "ROLE", String.valueOf(roleId),
+                Map.of("roleName", role.getName(), "code", permission.getCode()));
+
+        return toResponse(role, activeDutyCodes(role));
     }
 
     private Set<String> activeDutyCodes(RoleEntity role) {

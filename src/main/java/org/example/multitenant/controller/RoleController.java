@@ -34,8 +34,17 @@ public class RoleController {
     public ResponseEntity<List<RoleResponse>> listRoles(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
         return ResponseEntity.ok(roleService.listRoles(authenticatedUser));
     }
+    @RequiresPermission("permission:assign")
+    @PutMapping("/{roleId}/permissions/{permissionId}")
+    public ResponseEntity<RoleResponse> assignDuties(@PathVariable Long roleId, @PathVariable Long permissionId,
+                                                     @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+        return ResponseEntity.ok(roleService.grantDuty(roleId, permissionId, authenticatedUser));
+    }
 
-
-
-
+    @RequiresPermission("permission:revoke")
+    @DeleteMapping("/{roleId}/permissions/{permissionId}")
+    public ResponseEntity<RoleResponse> revokeDuties(@PathVariable Long roleId, @PathVariable Long permissionId,
+                                                     @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+        return ResponseEntity.ok(roleService.revokeDuty(roleId, permissionId, authenticatedUser));
+    }
 }
