@@ -34,4 +34,8 @@ public class RoleController {
     public ResponseEntity<List<RoleResponse>> listRoles(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
         return ResponseEntity.ok(roleService.listRoles(authenticatedUser));
     }
+
+
+
+
 }

@@ -9,10 +9,14 @@ import org.example.multitenant.entity.TenantEntity;
 import org.example.multitenant.entity.UserEntity;
 import org.example.multitenant.exception.BadRequestException;
 import org.example.multitenant.exception.ConflictException;
+import org.example.multitenant.exception.ResourceNotFoundException;
+import org.example.multitenant.repository.PermissionRepo;
 import org.example.multitenant.repository.RolePermissionRepo;
 import org.example.multitenant.repository.RoleRepo;
 import org.example.multitenant.security.AuthenticatedUser;
+import org.example.multitenant.security.DutyChecker;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,12 +36,16 @@ public class RoleService {
     private final ActorService actorService;
     private final RolePermissionRepo rolePermissionRepo;
     private final AuditService auditService;
+    private final PermissionRepo permissionRepo;
+    private final DutyChecker dutyChecker;
 
-    public RoleService(RoleRepo roleRepo, ActorService actorService, RolePermissionRepo rolePermissionRepo, AuditService auditService) {
+    public RoleService(RoleRepo roleRepo, ActorService actorService, RolePermissionRepo rolePermissionRepo, AuditService auditService, PermissionRepo permissionRepo, DutyChecker dutyChecker) {
         this.roleRepo = roleRepo;
         this.actorService = actorService;
         this.rolePermissionRepo = rolePermissionRepo;
         this.auditService = auditService;
+        this.permissionRepo = permissionRepo;
+        this.dutyChecker = dutyChecker;
     }
 
     @PreAuthorize("@dutyChecker.has('role:create')")
@@ -83,9 +91,42 @@ public class RoleService {
                 .toList();
     }
 
-    @PreAuthorize("@dutyChecker.has('role:assign')")
-    public void assignRole(){
+    @PreAuthorize("@dutyChecker.has('permission:assign')")
+    public RoleResponse grandDuty(Long roleId, Long permissionId, AuthenticatedUser actor) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        if (roleRepo.findByIdAndTenant(roleId, tenant).isEmpty()) {
+            throw new ResourceNotFoundException("Role not found");
+        }
+        if (permissionRepo.findByIdAndTenant(permissionId, tenant).isEmpty()) {
+            throw new ResourceNotFoundException("Permission not found");
+        }
+        RoleEntity role = roleRepo.findById(roleId).orElseThrow(() -> new ResourceNotFoundException("Role not found"));
+        if (role.isSystem()){
+            throw new BadRequestException("System roles cannot be changed");
+        }
+        PermissionEntity permission = permissionRepo.findById(permissionId).orElseThrow(() -> new ResourceNotFoundException("Permission not found"));
+        if (!role.isActive() || !permission.isActive()){
+            throw new BadRequestException("Role or permission is inactive");
+        }
+        if (permission.isSystem() && !dutyChecker.has(permission.getCode())){
+            throw new AccessDeniedException("Access Denied");
+        }
+        if (rolePermissionRepo.existsByRoleAndPermission(role, permission)){
+            throw new BadRequestException("Permission already exists to the role");
+        }
+        RolePermissionEntity rolePermissionEntity = new RolePermissionEntity();
+        rolePermissionEntity.setRole(role);
+        rolePermissionEntity.setPermission(permission);
+        RolePermissionEntity saved;
+        try {
+            saved = rolePermissionRepo.saveAndFlush(rolePermissionEntity);
+        }catch (DataIntegrityViolationException e) {
+            throw  new ConflictException("Permission already exists");
+        }
+        auditService.audit(tenant,actorEntity,"ROLE_PERMISSION_ASSIGNED","ROLE",String.valueOf(roleId),Map.of("roleName",role.getName(),"code", permission.getCode()));
 
+        return toResponse(role,activeDutyCodes(role));
     }
 
     private Set<String> activeDutyCodes(RoleEntity role) {
