@@ -28,11 +28,11 @@ public class PermissionController {
     }
 
     @RequiresPermission("permission:create")
-    @PostMapping
+    @PostMapping("/create")
     public ResponseEntity<DutyResponse> createPermission(@Valid @RequestBody CreatePermissionRequest request,
                                                          @AuthenticationPrincipal AuthenticatedUser actor) {
         DutyResponse response = permissionService.createPermission(request, actor);
-        return ResponseEntity.created(URI.create("/api/permissions/" + response.permissionId())).body(response);
+        return ResponseEntity.ok().body(response);
     }
 
     @RequiresPermission("permission:read")
