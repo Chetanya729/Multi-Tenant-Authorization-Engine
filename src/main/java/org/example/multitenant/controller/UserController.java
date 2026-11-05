@@ -5,7 +5,6 @@ import jakarta.validation.Valid;
 import org.example.multitenant.dto.Request.UserRequest;
 import org.example.multitenant.dto.Response.UserPermissionResponse;
 import org.example.multitenant.dto.Response.UserResponse;
-import org.example.multitenant.security.AuthenticatedOnly;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.security.RequiresPermission;
 import org.example.multitenant.service.UserService;
@@ -14,9 +13,6 @@ import org.springframework.http.ResponseEntity;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.net.URI;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -40,5 +36,19 @@ public class UserController {
     @GetMapping("/{id}/permissions")
     public ResponseEntity<UserPermissionResponse> getPermissions(@PathVariable Long id , @AuthenticationPrincipal AuthenticatedUser actor) {
         return ResponseEntity.ok().body(userService.getUserPermissions(id, actor));
+    }
+
+    @RequiresPermission("role:assign")
+    @PutMapping("/{userId}/roles/{roleId}")
+    public ResponseEntity<UserPermissionResponse> assignRole(@PathVariable Long userId, @PathVariable Long roleId,
+                                                             @AuthenticationPrincipal AuthenticatedUser actor) {
+        return ResponseEntity.ok(userService.assignRole(userId, roleId, actor));
+    }
+
+    @RequiresPermission("role:revoke")
+    @DeleteMapping("/{userId}/roles/{roleId}")
+    public ResponseEntity<UserPermissionResponse> revokeRole(@PathVariable Long userId, @PathVariable Long roleId,
+                                                             @AuthenticationPrincipal AuthenticatedUser actor) {
+        return ResponseEntity.ok(userService.revokeRole(userId, roleId, actor));
     }
 }

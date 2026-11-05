@@ -5,7 +5,9 @@ import org.example.multitenant.dto.Request.UserRequest;
 import org.example.multitenant.dto.Response.MeResponse;
 import org.example.multitenant.dto.Response.UserPermissionResponse;
 import org.example.multitenant.dto.Response.UserResponse;
+import org.example.multitenant.entity.PermissionEntity;
 import org.example.multitenant.entity.RoleEntity;
+import org.example.multitenant.entity.RolePermissionEntity;
 import org.example.multitenant.entity.TenantEntity;
 import org.example.multitenant.entity.UserEntity;
 import org.example.multitenant.entity.UserRoleEntity;
@@ -13,6 +15,7 @@ import org.example.multitenant.enums.TenantType;
 import org.example.multitenant.exception.BadRequestException;
 import org.example.multitenant.exception.ConflictException;
 import org.example.multitenant.exception.ResourceNotFoundException;
+import org.example.multitenant.repository.RolePermissionRepo;
 import org.example.multitenant.repository.RoleRepo;
 import org.example.multitenant.repository.UserRepo;
 import org.example.multitenant.repository.UserRoleRepo;
@@ -39,9 +42,10 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final TokenProperties tokenProperties;
     private final DutyChecker dutyChecker;
+    private final RolePermissionRepo rolePermissionRepo;
 
 
-    public UserService(UserRepo userRepo, EffectivePermissionService effectivePermissionService, RoleRepo roleRepo, UserRoleRepo userRoleRepo, AuditService auditService, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, DutyChecker dutyChecker) {
+    public UserService(UserRepo userRepo, EffectivePermissionService effectivePermissionService, RoleRepo roleRepo, UserRoleRepo userRoleRepo, AuditService auditService, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, DutyChecker dutyChecker, RolePermissionRepo rolePermissionRepo) {
         this.userRepo = userRepo;
         this.effectivePermissionService = effectivePermissionService;
         this.roleRepo = roleRepo;
@@ -50,6 +54,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
         this.tokenProperties = tokenProperties;
         this.dutyChecker = dutyChecker;
+        this.rolePermissionRepo = rolePermissionRepo;
     }
 
     private UserEntity loadActor(AuthenticatedUser actor) {
@@ -125,7 +130,67 @@ public class UserService {
         TenantEntity tenant = loadActor(user).getTenant();
         UserEntity target = userRepo.findByIdAndTenant(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+        return buildPermissions(target, tenant);
+    }
 
+    @PreAuthorize("@dutyChecker.has('role:assign')")
+    @Transactional
+    public UserPermissionResponse assignRole(Long userId, Long roleId, AuthenticatedUser actor) {
+        UserEntity actorEntity = loadActor(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        UserEntity target = userRepo.findByIdAndTenant(userId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+        RoleEntity role = roleRepo.findByIdAndTenant(roleId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Role Not Found"));
+        if (!role.isActive()) {
+            throw new BadRequestException("Role Not Active");
+        }
+        requireHoldsSystemDuties(role, actorEntity);
+        if (userRoleRepo.existsByUserAndRole(target, role)) {
+            throw new ConflictException("User already has this role");
+        }
+        try {
+            userRoleRepo.saveAndFlush(new UserRoleEntity(target, role, actorEntity));
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("User already has this role");
+        }
+        auditService.audit(tenant, actorEntity, "ROLE_ASSIGNED", "USER", String.valueOf(target.getId()),
+                Map.of("roleId", role.getId(), "roleName", role.getName()));
+        return buildPermissions(target, tenant);
+    }
+
+    @PreAuthorize("@dutyChecker.has('role:revoke')")
+    @Transactional
+    public UserPermissionResponse revokeRole(Long userId, Long roleId, AuthenticatedUser actor) {
+        UserEntity actorEntity = loadActor(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        UserEntity target = userRepo.findByIdAndTenant(userId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+        RoleEntity role = roleRepo.findByIdAndTenant(roleId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Role Not Found"));
+        UserRoleEntity link = userRoleRepo.findByUserAndRole(target, role)
+                .orElseThrow(() -> new ResourceNotFoundException("User does not have this role"));
+        requireHoldsSystemDuties(role, actorEntity);
+        if (role.isSystem() && userRoleRepo.countByRole(role) <= 1) {
+            throw new BadRequestException("Cannot remove the last admin of the tenant");
+        }
+        userRoleRepo.delete(link);
+        auditService.audit(tenant, actorEntity, "ROLE_REVOKED", "USER", String.valueOf(target.getId()),
+                Map.of("roleId", role.getId(), "roleName", role.getName()));
+        return buildPermissions(target, tenant);
+    }
+
+    private void requireHoldsSystemDuties(RoleEntity role, UserEntity actorEntity) {
+        Set<String> held = effectivePermissionService.userDutyCodes(actorEntity.getId());
+        for (RolePermissionEntity link : rolePermissionRepo.findAllByRole(role)) {
+            PermissionEntity duty = link.getPermission();
+            if (duty.isSystem() && duty.isActive() && !held.contains(duty.getCode())) {
+                throw new AccessDeniedException("You cannot assign or revoke a role with duties you do not hold");
+            }
+        }
+    }
+
+    private UserPermissionResponse buildPermissions(UserEntity target, TenantEntity tenant) {
         Set<String> roleNames = new TreeSet<>();
         for (UserRoleEntity userRole : userRoleRepo.findAllByUser(target)) {
             RoleEntity role = userRole.getRole();
