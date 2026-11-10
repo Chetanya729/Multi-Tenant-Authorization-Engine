@@ -35,11 +35,11 @@ public class LoginService {
 
     @Transactional
     public TokenResponse login(LoginRequest request) {
-        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
 
         try {
             authenticationManager.authenticate(
-                    UsernamePasswordAuthenticationToken.unauthenticated(email, request.getPassword()));
+                    UsernamePasswordAuthenticationToken.unauthenticated(email, request.password()));
         } catch (AuthenticationException e) {
             log.warn("Login failed for {}", email);
             throw e;

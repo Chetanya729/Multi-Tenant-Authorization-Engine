@@ -2,17 +2,12 @@ package org.example.multitenant.dto.Request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.*;
 
-@Data
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
-public class LoginRequest {
+public record LoginRequest(@Email @NotBlank String email,
+                           @NotBlank String password) {
 
-    @Email@NotBlank
-    private String email;
-    @NotBlank
-    private String password;
-
+    @Override
+    public String toString() {
+        return "LoginRequest[email=" + email + "]";
+    }
 }

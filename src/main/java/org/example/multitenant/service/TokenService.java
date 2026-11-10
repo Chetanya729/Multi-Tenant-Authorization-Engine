@@ -5,10 +5,13 @@ import org.example.multitenant.config.TokenProperties;
 import org.example.multitenant.entity.RefreshTokenEntity;
 import org.example.multitenant.entity.UserEntity;
 import org.example.multitenant.repository.RefreshTokenRepo;
+import org.example.multitenant.security.AuthenticatedUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 
@@ -19,12 +22,38 @@ public class TokenService {
     private final TokenGenerator tokenGenerator;
     private final RefreshTokenRepo refreshTokenRepo;
     private final TokenProperties tokenProperties;
+    private final AuditService auditService;
+    private final ActorService actorService;
 
-    public TokenService(AccessTokenStore accessTokenStore, TokenGenerator tokenGenerator, RefreshTokenRepo refreshTokenRepo, TokenProperties tokenProperties) {
+    public TokenService(AccessTokenStore accessTokenStore, TokenGenerator tokenGenerator, RefreshTokenRepo refreshTokenRepo, TokenProperties tokenProperties, AuditService auditService, ActorService actorService) {
         this.accessTokenStore = accessTokenStore;
         this.tokenGenerator = tokenGenerator;
         this.refreshTokenRepo = refreshTokenRepo;
         this.tokenProperties = tokenProperties;
+        this.auditService = auditService;
+        this.actorService = actorService;
+    }
+
+    @Transactional
+    public void logout(AuthenticatedUser actor, String accessTokenHash, String rawRefreshToken) {
+        UserEntity actorEntity = actorService.load(actor);
+        accessTokenStore.revoke(accessTokenHash);
+
+        int revokedRefreshTokens = 0;
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
+            Optional<RefreshTokenEntity> presented = refreshTokenRepo.findByTokenHash(tokenGenerator.hash(rawRefreshToken.trim()))
+                    .filter(token -> token.getUser().getId().equals(actor.userId()));
+            if (presented.isPresent()) {
+                Instant now = Instant.now();
+                for (RefreshTokenEntity token : refreshTokenRepo.findAllByFamilyIdAndRevokedAtIsNull(presented.get().getFamilyId())) {
+                    token.setRevokedAt(now);
+                    revokedRefreshTokens++;
+                }
+            }
+        }
+
+        auditService.audit(actorEntity.getTenant(), actorEntity, "LOGOUT", "USER", String.valueOf(actorEntity.getId()),
+                Map.of("refreshTokensRevoked", revokedRefreshTokens));
     }
 
     public record IssuedTokens(String accessToken, String refreshToken , Long expiresIn) {

@@ -17,7 +17,6 @@ import org.example.multitenant.exception.ConflictException;
 import org.example.multitenant.repository.*;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

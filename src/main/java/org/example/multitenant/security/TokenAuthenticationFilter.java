@@ -29,6 +29,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     public TokenAuthenticationFilter(AccessTokenStore accessTokenStore, TokenGenerator tokenGenerator) {
         this.accessTokenStore = accessTokenStore;
         this.tokenGenerator = tokenGenerator;
+
     }
 
     @Override
@@ -48,12 +49,14 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticate(String rawToken) {
         try {
-            accessTokenStore.find(tokenGenerator.hash(rawToken)).ifPresent(storedToken -> {
+            String tokenHash = tokenGenerator.hash(rawToken);
+            accessTokenStore.find(tokenHash).ifPresent(storedToken -> {
                 AuthenticatedUser authenticatedUser =
                         new AuthenticatedUser(storedToken.userId(), storedToken.tenantId());
 
                 UsernamePasswordAuthenticationToken authentication =
                         UsernamePasswordAuthenticationToken.authenticated(authenticatedUser, null, List.of());
+                authentication.setDetails(tokenHash);
 
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(authentication);
