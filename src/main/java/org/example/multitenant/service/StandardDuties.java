@@ -1,6 +1,9 @@
 package org.example.multitenant.service;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 public class StandardDuties {
     public record DutySeed(String code, String description) {
     }
@@ -25,4 +28,7 @@ public class StandardDuties {
             new DutySeed("audit:read", "Read the audit log"),
             new DutySeed("session:revoke", "Force-logout a user")
     );
+    public static final Set<String> ADMIN_DUTY_CODES = ADMIN_DUTIES.stream()
+            .map(DutySeed::code)
+            .collect(Collectors.toUnmodifiableSet());
 }

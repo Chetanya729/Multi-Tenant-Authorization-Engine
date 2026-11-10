@@ -1,24 +1,19 @@
 package org.example.multitenant.service;
 
 import org.example.multitenant.config.TokenProperties;
+import org.example.multitenant.dto.Request.DisableUserRequest;
 import org.example.multitenant.dto.Request.UserRequest;
 import org.example.multitenant.dto.Response.MeResponse;
 import org.example.multitenant.dto.Response.UserPermissionResponse;
 import org.example.multitenant.dto.Response.UserResponse;
-import org.example.multitenant.entity.PermissionEntity;
-import org.example.multitenant.entity.RoleEntity;
-import org.example.multitenant.entity.RolePermissionEntity;
-import org.example.multitenant.entity.TenantEntity;
-import org.example.multitenant.entity.UserEntity;
-import org.example.multitenant.entity.UserRoleEntity;
+import org.example.multitenant.dto.Response.UserStatusResponse;
+import org.example.multitenant.entity.*;
+import org.example.multitenant.enums.DisableReason;
 import org.example.multitenant.enums.TenantType;
 import org.example.multitenant.exception.BadRequestException;
 import org.example.multitenant.exception.ConflictException;
 import org.example.multitenant.exception.ResourceNotFoundException;
-import org.example.multitenant.repository.RolePermissionRepo;
-import org.example.multitenant.repository.RoleRepo;
-import org.example.multitenant.repository.UserRepo;
-import org.example.multitenant.repository.UserRoleRepo;
+import org.example.multitenant.repository.*;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.security.DutyChecker;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -44,9 +39,11 @@ public class UserService {
     private final DutyChecker dutyChecker;
     private final RolePermissionRepo rolePermissionRepo;
     private final ActorService actorService;
+    private final AccessTokenStore accessTokenStore;
+    private final RefreshTokenRepo refreshTokenRepo;
 
 
-    public UserService(UserRepo userRepo, EffectivePermissionService effectivePermissionService, RoleRepo roleRepo, UserRoleRepo userRoleRepo, AuditService auditService, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, DutyChecker dutyChecker, RolePermissionRepo rolePermissionRepo, ActorService actorService) {
+    public UserService(UserRepo userRepo, EffectivePermissionService effectivePermissionService, RoleRepo roleRepo, UserRoleRepo userRoleRepo, AuditService auditService, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, DutyChecker dutyChecker, RolePermissionRepo rolePermissionRepo, ActorService actorService, AccessTokenStore accessTokenStore, RefreshTokenRepo refreshTokenRepo) {
         this.userRepo = userRepo;
         this.effectivePermissionService = effectivePermissionService;
         this.roleRepo = roleRepo;
@@ -57,6 +54,8 @@ public class UserService {
         this.dutyChecker = dutyChecker;
         this.rolePermissionRepo = rolePermissionRepo;
         this.actorService = actorService;
+        this.accessTokenStore = accessTokenStore;
+        this.refreshTokenRepo = refreshTokenRepo;
     }
 
     @Transactional
@@ -211,7 +210,81 @@ public class UserService {
                 ? effectivePermissionService.platformDutyCodes(userId)
                 : Set.of();
 
+        Set<String> roles = new TreeSet<>();
+        for (UserRoleEntity userRole : userRoleRepo.findAllByUser(user)) {
+            RoleEntity role = userRole.getRole();
+            if (role.isActive()) {
+                roles.add(role.getName());
+            }
+        }
+
         return new MeResponse(user.getId(), user.getEmail(), tenant.getId(), tenant.getType(), tenant.getSlug(),
-                duties, platformDuties);
+                duties, platformDuties, roles);
+    }
+
+    private void requireCanChange(UserEntity target, UserEntity actor) {
+        if (target.getId().equals(actor.getId())) {
+            throw new BadRequestException("You cannot change your own account status");
+        }
+        Set<String> targetDuties = effectivePermissionService.userDutyCodes(target.getId());
+        Set<String> actorDuties = effectivePermissionService.userDutyCodes(actor.getId());
+        for (String code : targetDuties) {
+            if (StandardDuties.ADMIN_DUTY_CODES.contains(code) && !actorDuties.contains(code)) {
+                throw new AccessDeniedException("You cannot change a user who holds duties you do not hold");
+            }
+        }
+    }
+
+    @PreAuthorize("@dutyChecker.has('user:disable')")
+    @Transactional
+    public UserStatusResponse disableUser(Long userId, DisableUserRequest request, AuthenticatedUser actor) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        UserEntity target = userRepo.findByIdAndTenant(userId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+        requireCanChange(target, actorEntity);
+        if (!target.isEnabled()) {
+            return new UserStatusResponse(target.getId(), target.getEmail(), false);
+        }
+        target.setEnabled(false);
+        userRepo.save(target);
+
+        accessTokenStore.revokeAllForUser(target.getId());
+        Instant now = Instant.now();
+        int refreshTokensRevoked = 0;
+        for (RefreshTokenEntity token : refreshTokenRepo.findAllByUserAndRevokedAtIsNull(target)) {
+            token.setRevokedAt(now);
+            refreshTokensRevoked++;
+        }
+
+        DisableReason reason = request == null || request.reason() == null ? DisableReason.OTHER : request.reason();
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("email", target.getEmail());
+        details.put("reason", reason.name());
+        details.put("refreshTokensRevoked", refreshTokensRevoked);
+        if (request != null && request.note() != null && !request.note().isBlank()) {
+            details.put("note", request.note().trim());
+        }
+        auditService.audit(tenant, actorEntity, "USER_DISABLED", "USER", String.valueOf(target.getId()), details);
+
+        return new UserStatusResponse(target.getId(), target.getEmail(), false);
+    }
+
+    @PreAuthorize("@dutyChecker.has('user:disable')")
+    @Transactional
+    public UserStatusResponse enableUser(Long userId, AuthenticatedUser actor) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        UserEntity target = userRepo.findByIdAndTenant(userId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+        requireCanChange(target, actorEntity);
+        if (target.isEnabled()) {
+            return new UserStatusResponse(target.getId(), target.getEmail(), true);
+        }
+        target.setEnabled(true);
+        userRepo.save(target);
+        auditService.audit(tenant, actorEntity, "USER_ENABLED", "USER", String.valueOf(target.getId()),
+                Map.of("email", target.getEmail()));
+        return new UserStatusResponse(target.getId(), target.getEmail(), true);
     }
 }

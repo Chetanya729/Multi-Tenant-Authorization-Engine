@@ -2,9 +2,11 @@ package org.example.multitenant.controller;
 
 import jakarta.validation.Valid;
 
+import org.example.multitenant.dto.Request.DisableUserRequest;
 import org.example.multitenant.dto.Request.UserRequest;
 import org.example.multitenant.dto.Response.UserPermissionResponse;
 import org.example.multitenant.dto.Response.UserResponse;
+import org.example.multitenant.dto.Response.UserStatusResponse;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.security.RequiresPermission;
 import org.example.multitenant.service.UserService;
@@ -50,5 +52,20 @@ public class UserController {
     public ResponseEntity<UserPermissionResponse> revokeRole(@PathVariable Long userId, @PathVariable Long roleId,
                                                              @AuthenticationPrincipal AuthenticatedUser actor) {
         return ResponseEntity.ok(userService.revokeRole(userId, roleId, actor));
+    }
+
+    @RequiresPermission("user:disable")
+    @PostMapping("/{id}/disable")
+    public ResponseEntity<UserStatusResponse> disableUser(@PathVariable Long id,
+                                                          @Valid @RequestBody(required = false) DisableUserRequest request,
+                                                          @AuthenticationPrincipal AuthenticatedUser actor) {
+        return ResponseEntity.ok(userService.disableUser(id, request, actor));
+    }
+
+    @RequiresPermission("user:disable")
+    @PostMapping("/{id}/enable")
+    public ResponseEntity<UserStatusResponse> enableUser(@PathVariable Long id,
+                                                         @AuthenticationPrincipal AuthenticatedUser actor) {
+        return ResponseEntity.ok(userService.enableUser(id, actor));
     }
 }
