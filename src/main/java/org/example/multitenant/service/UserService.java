@@ -43,9 +43,10 @@ public class UserService {
     private final TokenProperties tokenProperties;
     private final DutyChecker dutyChecker;
     private final RolePermissionRepo rolePermissionRepo;
+    private final ActorService actorService;
 
 
-    public UserService(UserRepo userRepo, EffectivePermissionService effectivePermissionService, RoleRepo roleRepo, UserRoleRepo userRoleRepo, AuditService auditService, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, DutyChecker dutyChecker, RolePermissionRepo rolePermissionRepo) {
+    public UserService(UserRepo userRepo, EffectivePermissionService effectivePermissionService, RoleRepo roleRepo, UserRoleRepo userRoleRepo, AuditService auditService, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, DutyChecker dutyChecker, RolePermissionRepo rolePermissionRepo, ActorService actorService) {
         this.userRepo = userRepo;
         this.effectivePermissionService = effectivePermissionService;
         this.roleRepo = roleRepo;
@@ -55,21 +56,13 @@ public class UserService {
         this.tokenProperties = tokenProperties;
         this.dutyChecker = dutyChecker;
         this.rolePermissionRepo = rolePermissionRepo;
-    }
-
-    private UserEntity loadActor(AuthenticatedUser actor) {
-        UserEntity actorEntity = userRepo.findById(actor.userId())
-                .orElseThrow(() -> new IllegalStateException("Authenticated user " + actor.userId() + " no longer exists"));
-        if (!Objects.equals(actorEntity.getTenant().getId(), actor.tenantId())) {
-            throw new AccessDeniedException("Access Denied");
-        }
-        return actorEntity;
+        this.actorService = actorService;
     }
 
     @Transactional
     @PreAuthorize("@dutyChecker.has('user:create')")
     public UserResponse createUser(UserRequest request , AuthenticatedUser user) {
-        UserEntity actorEntity = loadActor(user);
+        UserEntity actorEntity = actorService.load(user);
         List<RoleEntity> roles = new ArrayList<>();
         TenantEntity tenant = actorEntity.getTenant();
         if (!Objects.equals(tenant.getId(), user.tenantId())){

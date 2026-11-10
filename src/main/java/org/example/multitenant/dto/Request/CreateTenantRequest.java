@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 
 public record CreateTenantRequest(
         @NotBlank @Size(max = 150) String name,
-        @NotBlank @Pattern(regexp = "^[a-z0-9]+(-[a-z0-9]+)*$")String slug,
+        @NotBlank @Pattern(regexp = "^[a-z0-9]+(-[a-z0-9]+)*$") @Size(max = 50) String slug,
         @NotBlank @Email @Size(max = 150)  String adminEmail,
         @NotBlank @Size(min = 12,max = 72) String temporaryPassword
 ) {

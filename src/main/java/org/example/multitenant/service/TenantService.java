@@ -42,8 +42,9 @@ public class TenantService {
     private final PasswordEncoder passwordEncoder;
     private final TokenProperties tokenProperties;
     private final AuditService auditService;
+    private final ActorService actorService;
 
-    public TenantService(TenantRepo tenantRepo, PermissionRepo permissionRepo, RoleRepo roleRepo, RolePermissionRepo rolePermissionRepo, UserRepo userRepo, UserRoleRepo userRoleRepo, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, AuditService auditService) {
+    public TenantService(TenantRepo tenantRepo, PermissionRepo permissionRepo, RoleRepo roleRepo, RolePermissionRepo rolePermissionRepo, UserRepo userRepo, UserRoleRepo userRoleRepo, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, AuditService auditService, ActorService actorService) {
         this.tenantRepo = tenantRepo;
         this.permissionRepo = permissionRepo;
         this.roleRepo = roleRepo;
@@ -53,21 +54,13 @@ public class TenantService {
         this.passwordEncoder = passwordEncoder;
         this.tokenProperties = tokenProperties;
         this.auditService = auditService;
-    }
-
-    private UserEntity loadActor(AuthenticatedUser actor) {
-        UserEntity actorEntity = userRepo.findById(actor.userId())
-                .orElseThrow(() -> new IllegalStateException("Authenticated user " + actor.userId() + " no longer exists"));
-        if (!Objects.equals(actorEntity.getTenant().getId(), actor.tenantId())) {
-            throw new AccessDeniedException("Access Denied");
-        }
-        return actorEntity;
+        this.actorService = actorService;
     }
 
     @PreAuthorize("@dutyChecker.hasPlatform('tenant:create')")
     @Transactional
     public TenantResponse createTenant(CreateTenantRequest request, AuthenticatedUser authenticatedUser)  {
-        UserEntity actorEntity = loadActor(authenticatedUser);
+        UserEntity actorEntity = actorService.load(authenticatedUser);
         String slug = request.slug().trim().toLowerCase(Locale.ROOT);
         String email =request.adminEmail().trim().toLowerCase(Locale.ROOT);
         boolean tenant = tenantRepo.existsBySlug(slug);
