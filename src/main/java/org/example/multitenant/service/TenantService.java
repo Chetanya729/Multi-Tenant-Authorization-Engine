@@ -4,16 +4,14 @@ package org.example.multitenant.service;
 import org.example.multitenant.config.TokenProperties;
 import org.example.multitenant.dto.Request.CreateTenantRequest;
 import org.example.multitenant.dto.Response.TenantResponse;
-import org.example.multitenant.entity.PermissionEntity;
-import org.example.multitenant.entity.RoleEntity;
-import org.example.multitenant.entity.RolePermissionEntity;
-import org.example.multitenant.entity.TenantEntity;
-import org.example.multitenant.entity.UserEntity;
-import org.example.multitenant.entity.UserRoleEntity;
+import org.example.multitenant.dto.Response.TenantStatusResponse;
+import org.example.multitenant.entity.*;
 import org.example.multitenant.enums.PermissionScope;
 import org.example.multitenant.enums.TenantStatus;
 import org.example.multitenant.enums.TenantType;
+import org.example.multitenant.exception.BadRequestException;
 import org.example.multitenant.exception.ConflictException;
+import org.example.multitenant.exception.ResourceNotFoundException;
 import org.example.multitenant.repository.*;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -42,8 +40,10 @@ public class TenantService {
     private final TokenProperties tokenProperties;
     private final AuditService auditService;
     private final ActorService actorService;
+    private final RefreshTokenRepo refreshTokenRepo;
+    private final AccessTokenStore accessTokenStore;
 
-    public TenantService(TenantRepo tenantRepo, PermissionRepo permissionRepo, RoleRepo roleRepo, RolePermissionRepo rolePermissionRepo, UserRepo userRepo, UserRoleRepo userRoleRepo, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, AuditService auditService, ActorService actorService) {
+    public TenantService(TenantRepo tenantRepo, PermissionRepo permissionRepo, RoleRepo roleRepo, RolePermissionRepo rolePermissionRepo, UserRepo userRepo, UserRoleRepo userRoleRepo, PasswordEncoder passwordEncoder, TokenProperties tokenProperties, AuditService auditService, ActorService actorService, RefreshTokenRepo refreshTokenRepo, AccessTokenStore accessTokenStore) {
         this.tenantRepo = tenantRepo;
         this.permissionRepo = permissionRepo;
         this.roleRepo = roleRepo;
@@ -54,6 +54,8 @@ public class TenantService {
         this.tokenProperties = tokenProperties;
         this.auditService = auditService;
         this.actorService = actorService;
+        this.refreshTokenRepo = refreshTokenRepo;
+        this.accessTokenStore = accessTokenStore;
     }
 
     @PreAuthorize("@dutyChecker.hasPlatform('tenant:create')")
@@ -142,6 +144,46 @@ public class TenantService {
 
 
     @PreAuthorize("@dutyChecker.hasPlatform('tenant:suspend')")
-    public void suspendTenant(){
+    @Transactional
+    public TenantStatusResponse suspendTenant(Long tenantId, AuthenticatedUser actor) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = tenantRepo.findById(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant Not Found"));
+
+        if (tenant.getType() == TenantType.PLATFORM) {
+            throw new BadRequestException("The platform tenant cannot be suspended");
+        }
+        if (tenant.getStatus() == TenantStatus.SUSPENDED) {
+            return new TenantStatusResponse(tenant.getId(), tenant.getSlug(), tenant.getStatus());
+        }
+        tenant.setStatus(TenantStatus.SUSPENDED);
+        tenantRepo.save(tenant);
+
+        List<UserEntity> users = userRepo.findAllByTenant(tenant);
+        for (UserEntity user : users) {
+            accessTokenStore.revokeAllForUser(user.getId());
+        }
+        int refreshTokensRevoked = refreshTokenRepo.revokeAllForTenant(tenant, Instant.now());
+
+        auditService.audit(actorEntity.getTenant(), actorEntity, "TENANT_SUSPENDED", "TENANT",
+                String.valueOf(tenant.getId()), Map.of("slug", tenant.getSlug(), "usersAffected", users.size(),
+                        "refreshTokensRevoked", refreshTokensRevoked));
+        return new TenantStatusResponse(tenant.getId(), tenant.getSlug(), TenantStatus.SUSPENDED);
+    }
+
+    @PreAuthorize("@dutyChecker.hasPlatform('tenant:suspend')")
+    @Transactional
+    public TenantStatusResponse reactivateTenant(Long tenantId, AuthenticatedUser actor) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = tenantRepo.findById(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant Not Found"));
+        if (tenant.getStatus() == TenantStatus.ACTIVE) {
+            return new TenantStatusResponse(tenant.getId(), tenant.getSlug(), tenant.getStatus());
+        }
+        tenant.setStatus(TenantStatus.ACTIVE);
+        tenantRepo.save(tenant);
+        auditService.audit(actorEntity.getTenant(), actorEntity, "TENANT_REACTIVATED", "TENANT",
+                String.valueOf(tenant.getId()), Map.of("slug", tenant.getSlug()));
+        return new TenantStatusResponse(tenant.getId(), tenant.getSlug(), TenantStatus.ACTIVE);
     }
 }
