@@ -120,7 +120,7 @@ public class UserService {
     @PreAuthorize("@dutyChecker.has('user:read')")
     @Transactional(readOnly = true)
     public UserPermissionResponse getUserPermissions(Long id , AuthenticatedUser user) {
-        TenantEntity tenant = loadActor(user).getTenant();
+        TenantEntity tenant = actorService.load(user).getTenant();
         UserEntity target = userRepo.findByIdAndTenant(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
         return buildPermissions(target, tenant);
@@ -129,7 +129,7 @@ public class UserService {
     @PreAuthorize("@dutyChecker.has('role:assign')")
     @Transactional
     public UserPermissionResponse assignRole(Long userId, Long roleId, AuthenticatedUser actor) {
-        UserEntity actorEntity = loadActor(actor);
+        UserEntity actorEntity = actorService.load(actor);
         TenantEntity tenant = actorEntity.getTenant();
         UserEntity target = userRepo.findByIdAndTenant(userId, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
@@ -155,7 +155,7 @@ public class UserService {
     @PreAuthorize("@dutyChecker.has('role:revoke')")
     @Transactional
     public UserPermissionResponse revokeRole(Long userId, Long roleId, AuthenticatedUser actor) {
-        UserEntity actorEntity = loadActor(actor);
+        UserEntity actorEntity = actorService.load(actor);
         TenantEntity tenant = actorEntity.getTenant();
         UserEntity target = userRepo.findByIdAndTenant(userId, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
