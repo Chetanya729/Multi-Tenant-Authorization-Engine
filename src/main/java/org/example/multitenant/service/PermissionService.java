@@ -8,6 +8,7 @@ import org.example.multitenant.entity.UserEntity;
 import org.example.multitenant.enums.PermissionScope;
 import org.example.multitenant.exception.BadRequestException;
 import org.example.multitenant.exception.ConflictException;
+import org.example.multitenant.exception.ResourceNotFoundException;
 import org.example.multitenant.repository.PermissionRepo;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -80,8 +81,33 @@ public class PermissionService {
     }
 
     @PreAuthorize("@dutyChecker.has('permission:deactivate')")
-    public void deactivatePermission(){
+    @Transactional
+    public DutyResponse deactivatePermission(Long permissionId, AuthenticatedUser actor) {
+        return changeActive(permissionId, actor, false);
+    }
 
+    @PreAuthorize("@dutyChecker.has('permission:deactivate')")
+    @Transactional
+    public DutyResponse activatePermission(Long permissionId, AuthenticatedUser actor) {
+        return changeActive(permissionId, actor, true);
+    }
+
+    private DutyResponse changeActive(Long permissionId, AuthenticatedUser actor, boolean active) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        PermissionEntity duty = permissionRepo.findByIdAndTenant(permissionId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Permission Not Found"));
+        if (duty.isSystem()) {
+            throw new BadRequestException("System duties cannot be deactivated or reactivated");
+        }
+        if (duty.isActive() == active) {
+            return toResponse(duty);
+        }
+        duty.setActive(active);
+        permissionRepo.save(duty);
+        auditService.audit(tenant, actorEntity, active ? "PERMISSION_ACTIVATED" : "PERMISSION_DEACTIVATED",
+                "PERMISSION", String.valueOf(duty.getId()), Map.of("code", duty.getCode()));
+        return toResponse(duty);
     }
 
     private DutyResponse toResponse(PermissionEntity duty) {

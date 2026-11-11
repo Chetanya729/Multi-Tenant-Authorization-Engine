@@ -9,12 +9,12 @@ import org.example.multitenant.service.PermissionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -39,5 +39,19 @@ public class PermissionController {
     @GetMapping
     public ResponseEntity<List<DutyResponse>> listPermissions(@AuthenticationPrincipal AuthenticatedUser actor) {
         return ResponseEntity.ok(permissionService.listPermissions(actor));
+    }
+
+    @RequiresPermission("permission:deactivate")
+    @PostMapping("/{permissionId}/deactivate")
+    public ResponseEntity<DutyResponse> deactivatePermission(@PathVariable Long permissionId,
+                                                             @AuthenticationPrincipal AuthenticatedUser actor) {
+        return ResponseEntity.ok(permissionService.deactivatePermission(permissionId, actor));
+    }
+
+    @RequiresPermission("permission:deactivate")
+    @PostMapping("/{permissionId}/activate")
+    public ResponseEntity<DutyResponse> activatePermission(@PathVariable Long permissionId,
+                                                           @AuthenticationPrincipal AuthenticatedUser actor) {
+        return ResponseEntity.ok(permissionService.activatePermission(permissionId, actor));
     }
 }
