@@ -148,4 +148,4 @@ src/main/resources/db/migration   Flyway migrations V1–V5
 
 ## Author
 
-**Chetanya Bansal**
+**[Chetanya Bansal](https://chetanya.co.in/)**
