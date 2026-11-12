@@ -58,9 +58,13 @@ interface RequestOptions {
   auth?: boolean;
 }
 
+// Where the API lives. Empty means the same origin as the dashboard (the dev proxy, or Spring Boot serving both).
+// For a separate API domain set VITE_API_BASE_URL at build time, e.g. https://api.madora.in (origin only, no path).
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "") || window.location.origin;
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, query, auth = true } = options;
-  const url = new URL(path, window.location.origin);
+  const url = new URL(path, API_BASE);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
@@ -76,7 +80,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   try {
     response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
-    throw new ApiError(0, "Cannot reach the server. Is the backend running on port 8080?");
+    throw new ApiError(0, "Cannot reach the server.");
   }
 
   if (response.status === 204) return undefined as T;

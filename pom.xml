@@ -207,6 +207,10 @@
                             <resources>
                                 <resource>
                                     <directory>frontend/dist</directory>
+                                    <!-- Cloudflare Pages header rules; Spring sets its own headers. -->
+                                    <excludes>
+                                        <exclude>_headers</exclude>
+                                    </excludes>
                                 </resource>
                             </resources>
                         </configuration>
