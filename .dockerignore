@@ -1,0 +1,16 @@
+# Only what the Dockerfile needs (pom.xml, mvnw, .mvn, src) is sent to the build.
+.git
+.idea
+*.iml
+.vscode
+target
+frontend
+HELP.md
+dump.rdb
+Dockerfile
+.dockerignore
+
+# Never bake local secrets into an image.
+src/main/resources/application-local.yaml
+.env
+*.env

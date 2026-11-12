@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-brand-50: oklch(0.97 0.014 250);
+  --color-brand-100: oklch(0.93 0.03 250);
+  --color-brand-200: oklch(0.87 0.06 250);
+  --color-brand-300: oklch(0.78 0.09 250);
+  --color-brand-400: oklch(0.67 0.12 250);
+  --color-brand-500: oklch(0.57 0.14 250);
+  --color-brand-600: oklch(0.5 0.14 250);
+  --color-brand-700: oklch(0.43 0.12 250);
+  --color-brand-800: oklch(0.36 0.1 250);
+  --color-brand-900: oklch(0.3 0.08 250);
+  --animate-fade-in: fade-in 0.12s ease-out;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
+  }
+}
+
+@utility card {
+  @apply rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800;
+}
+
+@utility focus-ring {
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

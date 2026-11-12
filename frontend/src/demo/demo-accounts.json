@@ -1,0 +1,13 @@
+{
+  "password": "Demo-Pass-2026!",
+  "firstLoginTemporaryPassword": "Welcome-Temp-2026!",
+  "personas": [
+    { "email": "admin@acme.demo", "title": "Administrator", "org": "Acme Finance", "blurb": "Users, roles, duties, limits and the audit log." },
+    { "email": "priya.sharma@acme.demo", "title": "Finance manager", "org": "Acme Finance", "blurb": "Approves transfers up to ₹50,000." },
+    { "email": "vikram.rao@acme.demo", "title": "Finance director", "org": "Acme Finance", "blurb": "Approves transfers up to ₹10,00,000." },
+    { "email": "rahul.verma@acme.demo", "title": "Employee", "org": "Acme Finance", "blurb": "Submits transfers and tracks them." },
+    { "email": "sara.khan@acme.demo", "title": "Auditor", "org": "Acme Finance", "blurb": "Read-only: users, roles, transfers, audit." },
+    { "email": "new.joiner@acme.demo", "title": "New joiner", "org": "Acme Finance", "blurb": "First sign-in: must replace the temporary password.", "firstLogin": true },
+    { "email": "admin@globex.demo", "title": "Administrator", "org": "Globex Corp", "blurb": "A second organisation. Proves tenant isolation." }
+  ]
+}

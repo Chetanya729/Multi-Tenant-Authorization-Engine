@@ -12,6 +12,7 @@ A Spring Boot backend that lets many organisations (tenants) share one applicati
 - **Escalation guards:** nobody can grant, revoke or manage power they do not hold themselves.
 - **Transfer approvals:** a sample business workflow. Employees submit money transfers, and finance managers approve them within their role's approval limit, never their own.
 - **Audit log:** every security-relevant change records who, what and when, and never stores passwords or tokens.
+- **VANGUARD dashboard:** a React app in `frontend/` whose menus and actions follow the signed-in user's live duties.
 
 ## How access is decided
 
@@ -41,7 +42,9 @@ Duties are **never stored in tokens**. They are read from the database on every 
 
 ## Tech stack
 
-Java 17 · Spring Boot 4 · Spring Security 7 · PostgreSQL · Flyway · Redis · Maven
+**Backend:** Java 17 · Spring Boot 4 · Spring Security 7 · PostgreSQL · Flyway · Redis · Maven
+
+**Dashboard:** React 19 · TypeScript · Vite · Tailwind CSS 4 · TanStack Query · Recharts
 
 ## Getting started
 
@@ -70,7 +73,63 @@ Java 17 · Spring Boot 4 · Spring Security 7 · PostgreSQL · Flyway · Redis �
    ./mvnw spring-boot:run
    ```
    Flyway creates the schema, seeds the Platform tenant and its 21 duties, and the platform admin is created.
-5. **Call the API** on `http://localhost:8080` with Postman or curl.
+5. **Develop the dashboard** (Node 22+) in a second terminal, with hot reload:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   Open `http://localhost:5173`. The dev server forwards `/api` calls to the backend on port 8080.
+6. **Optional: load demo data.** This creates two organisations (Acme Finance and Globex Corp), roles, personas and transfers through the public API:
+   ```bash
+   cd frontend
+   PLATFORM_ADMIN_EMAIL=admin@platform.test PLATFORM_ADMIN_PASSWORD='your-password' npm run seed:demo
+   ```
+   All demo accounts use `Demo-Pass-2026!`. Set `VITE_DEMO_MODE=true` in `frontend/.env.development` to show a demo-account picker on the sign-in page. Run the script against a fresh database; it stops if the demo data already exists.
+
+For a live demo, consider raising the 5-minute access-token lifetime in `application-local.yaml` (`app.security.tokens.access-token-ttl: 60m`), since the refresh endpoint is not built yet.
+
+### Build and deploy as one application
+
+```bash
+./mvnw clean package
+java -jar target/Multi-Tenant-0.0.1-SNAPSHOT.jar
+```
+
+The Maven build downloads a project-local Node (no Node install needed), builds the dashboard and packs it into the jar. The API and the dashboard are then served together at `http://localhost:8080`. Use `-Dfrontend.skip=true` to build the API only.
+
+- Dashboard routes such as `/users` return `index.html`, and the React router takes over in the browser.
+- Hashed files under `/assets` are cached for a year; `index.html` is fetched fresh on every load, so a new release is picked up immediately.
+- API responses keep `Cache-Control: no-store`, and the strict Content-Security-Policy applies to the dashboard too. Only `/actuator/health` is open.
+- Running from IntelliJ skips the Maven frontend step, so use `npm run dev` there.
+
+### Run the API in Docker
+
+The `Dockerfile` builds the API only (the dashboard can be hosted separately, for example on Cloudflare Pages). It runs on a JRE as a non-root user with the `prod` profile. Local secrets (`application-local.yaml`) are excluded by `.dockerignore`.
+
+```bash
+docker build -t vanguard-api .
+docker run -p 8080:8080 \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/multitenant_db \
+  -e SPRING_DATASOURCE_USERNAME=postgres -e SPRING_DATASOURCE_PASSWORD=… \
+  -e REDIS_HOST=host.docker.internal \
+  -e PLATFORM_ADMIN_EMAIL=… -e PLATFORM_ADMIN_PASSWORD=… \
+  -e APP_CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+  vanguard-api
+```
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | PostgreSQL connection (JDBC URL: `jdbc:postgresql://host:port/db`) | `localhost:5432/multitenant_db`, `postgres` |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_USERNAME` / `REDIS_PASSWORD` / `REDIS_DATABASE` | Redis connection | `localhost`, `6379`, none, none, `0` |
+| `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` | First platform admin, created once on the first start | none |
+| `APP_CORS_ALLOWED_ORIGINS` | Comma-separated dashboard origins allowed to call the API; patterns such as `https://*.my-project.pages.dev` work | `http://localhost:5173` |
+| `PORT` | HTTP port (set automatically by Railway) | `8080` |
+| `ACCESS_TOKEN_TTL` | Access-token lifetime, e.g. `15m` | `5m` |
+| `SPRING_PROFILES_ACTIVE` | Profile; the image sets `prod` | `local` |
+| `JAVA_OPTS` | JVM options; the image caps the heap at 75% of the container's memory | see `Dockerfile` |
+
+Health check: `GET /actuator/health` returns `{"status":"UP"}`.
 
 ## Typical flow
 
@@ -138,8 +197,10 @@ All endpoints except login and first-password need `Authorization: Bearer <acces
 | | `POST /api/auth/logout` | Authenticated |
 | | `GET /api/me` | Authenticated |
 | Tenants | `POST /api/tenants/create` | `tenant:create` (platform) |
+| | `GET /api/tenants/list?page=0&size=20` | `tenant:read` (platform) |
 | | `POST /api/tenants/{id}/suspend` · `/reactivate` | `tenant:suspend` (platform) |
 | Users | `POST /api/users/create` | `user:create` |
+| | `GET /api/users/list?page=0&size=20` | `user:read` |
 | | `GET /api/users/{id}/permissions` | `user:read` |
 | | `PUT` / `DELETE /api/users/{userId}/roles/{roleId}` | `role:assign` / `role:revoke` |
 | | `POST /api/users/{id}/disable` · `/enable` | `user:disable` |
@@ -150,7 +211,7 @@ All endpoints except login and first-password need `Authorization: Bearer <acces
 | | `POST /api/permissions/{id}/deactivate` · `/activate` | `permission:deactivate` |
 | Transfers | `POST /api/transfers/create` | `transfer:create` |
 | | `GET /api/transfers/mine?page=0&size=20` | Authenticated |
-| | `GET /api/transfers/list?page=0&size=20` | `transfer:read` |
+| | `GET /api/transfers/list?status=PENDING&page=0&size=20` (status optional) | `transfer:read` |
 | | `GET /api/transfers/{id}` | Requester, or `transfer:read` |
 | | `POST /api/transfers/{id}/approve` · `/reject` | `transfer:approve` |
 | Audit | `GET /api/audit-logs/list?page=0&size=20` | `audit:read` |
@@ -185,11 +246,19 @@ src/main/java/org/example/multitenant
 ├── security      Token filter, authorization manager, annotations, duty checker
 └── service       Business logic for auth, tenants, users, roles, duties, transfers, audit
 src/main/resources/db/migration   Flyway migrations V1–V6
+
+frontend/src
+├── api           Fetch client, types and one function per endpoint
+├── auth          Session, live /api/me polling, sign-in and sign-out
+├── components    Layout shell, navigation rules and UI building blocks
+├── pages         Overview, profile, transfers, users, roles, permissions, audit, organisations
+└── demo          Demo account list shared with scripts/seed-demo.mjs
 ```
 
 ## Known limitations and roadmap
 
-- **Not built yet:** the refresh endpoint (`POST /api/auth/refresh`, with rotation and reuse detection).
+- **Not built yet:** the refresh endpoint (`POST /api/auth/refresh`, with rotation and reuse detection). Until then the dashboard signs users out when the access token expires.
+- **Approval limits** are plain numbers compared with the transfer amount; there is no currency conversion.
 - **Testing:** an automated integration and negative test suite for the acceptance criteria is still to be added.
 - **Rate limiting:** login and first-password have no rate limit yet. The planned design is a Redis fixed-window counter per IP and per email.
 - **Scale:** request-scoped caching of duty lookups, read replicas, Row-Level Security in PostgreSQL, SSO/SCIM and per-tenant quotas are on the roadmap.
