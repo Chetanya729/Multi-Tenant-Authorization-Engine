@@ -10,8 +10,8 @@ A Spring Boot backend that lets many organisations (tenants) share one applicati
 - **Secure authentication:** BCrypt passwords, opaque short-lived access tokens, hashed refresh tokens, forced password change on first login.
 - **Instant revocation:** logout, disabling a user and suspending a tenant end live sessions immediately.
 - **Escalation guards:** nobody can grant, revoke or manage power they do not hold themselves.
+- **Transfer approvals:** a sample business workflow. Employees submit money transfers, and finance managers approve them within their role's approval limit, never their own.
 - **Audit log:** every security-relevant change records who, what and when, and never stores passwords or tokens.
-- **Web console:** a small UI at `/` for trying every endpoint.
 
 ## How access is decided
 
@@ -41,7 +41,7 @@ Duties are **never stored in tokens**. They are read from the database on every 
 
 ## Tech stack
 
-Java 17 · Spring Boot 4 · Spring Security 7 · PostgreSQL · Flyway · Redis · Thymeleaf (console) · Maven
+Java 17 · Spring Boot 4 · Spring Security 7 · PostgreSQL · Flyway · Redis · Maven
 
 ## Getting started
 
@@ -70,7 +70,7 @@ Java 17 · Spring Boot 4 · Spring Security 7 · PostgreSQL · Flyway · Redis �
    ./mvnw spring-boot:run
    ```
    Flyway creates the schema, seeds the Platform tenant and its 21 duties, and the platform admin is created.
-5. **Open the console** at `http://localhost:8080/`, or use Postman.
+5. **Call the API** on `http://localhost:8080` with Postman or curl.
 
 ## Typical flow
 
@@ -84,6 +84,48 @@ Java 17 · Spring Boot 4 · Spring Security 7 · PostgreSQL · Flyway · Redis �
 7. Creates a user with that role              POST /api/users/create
 8. The user sets a password, logs in          GET  /api/me  → duties: ["transfer:approve"]
 ```
+
+## Transfer approval workflow
+
+A sample business feature built on the engine: an employee requests a transfer and a finance manager approves it.
+
+**Setup (tenant admin, once):**
+
+```text
+Duties   transfer:create · transfer:read · transfer:approve
+Roles    EMPLOYEE         → transfer:create
+         FINANCE_MANAGER  → transfer:read, transfer:approve
+Limit    PUT /api/roles/{roleId}/approval-limit   {"approvalLimit": 50000}
+```
+
+**Flow:**
+
+```text
+Rahul (EMPLOYEE)          POST /api/transfers/create   {"amount":40000,"currency":"INR","description":"Vendor invoice"}
+                          → status PENDING
+Priya (FINANCE_MANAGER)   POST /api/transfers/{id}/approve   {"note":"OK"}
+                          → status APPROVED, decidedBy priya
+or                        POST /api/transfers/{id}/reject    {"note":"Over budget"}   (note required)
+                          → status REJECTED
+```
+
+**An approval passes these checks in order:**
+
+| # | Check | Otherwise |
+|---|---|---|
+| 1 | Caller holds `transfer:approve` right now | `403` |
+| 2 | Transfer belongs to the caller's tenant | `404` |
+| 3 | Transfer is still `PENDING` | `409` |
+| 4 | Caller is not the requester | `403` |
+| 5 | Amount is within the highest approval limit of the caller's active roles (no limit means no approval) | `403` |
+| 6 | Nobody decided it at the same moment (optimistic locking with `@Version`) | `409` |
+
+**Rules:**
+
+- Anyone can see their own transfers. Seeing all of the tenant's transfers needs `transfer:read`. Anyone else asking for a transfer by ID gets `404`.
+- You cannot change the approval limit of a role you hold.
+- PostgreSQL enforces the core rules as constraints too: the amount must be positive, the currency must be 3 letters, the decision fields must match the status, and the approver can never be the requester.
+- Submit, approve, reject and limit changes are all written to the audit log.
 
 ## API reference
 
@@ -103,11 +145,17 @@ All endpoints except login and first-password need `Authorization: Bearer <acces
 | | `POST /api/users/{id}/disable` · `/enable` | `user:disable` |
 | Roles | `POST /api/roles/create` · `GET /api/roles/list` | `role:create` / `role:read` |
 | | `PUT` / `DELETE /api/roles/{roleId}/permissions/{permissionId}` | `permission:assign` / `permission:revoke` |
+| | `PUT /api/roles/{roleId}/approval-limit` | `role:update` |
 | Duties | `POST /api/permissions/create` · `GET /api/permissions` | `permission:create` / `permission:read` |
 | | `POST /api/permissions/{id}/deactivate` · `/activate` | `permission:deactivate` |
+| Transfers | `POST /api/transfers/create` | `transfer:create` |
+| | `GET /api/transfers/mine?page=0&size=20` | Authenticated |
+| | `GET /api/transfers/list?page=0&size=20` | `transfer:read` |
+| | `GET /api/transfers/{id}` | Requester, or `transfer:read` |
+| | `POST /api/transfers/{id}/approve` · `/reject` | `transfer:approve` |
 | Audit | `GET /api/audit-logs/list?page=0&size=20` | `audit:read` |
 
-**Status codes:** `400` invalid input · `401` not logged in or bad credentials · `403` not allowed, or `PASSWORD_CHANGE_REQUIRED` · `404` not found, or another tenant's data · `409` already exists
+**Status codes:** `400` invalid input · `401` not logged in or bad credentials · `403` not allowed, or `PASSWORD_CHANGE_REQUIRED` · `404` not found, or another tenant's data · `409` already exists, or a transfer already decided
 
 **Duty format:** `resource:action` in lowercase, e.g. `user:create`. The `tenant:` and `platform:` prefixes are reserved. Each new tenant gets 18 standard admin duties; business duties such as `transfer:approve` are created by the tenant admin.
 
@@ -128,20 +176,20 @@ All endpoints except login and first-password need `Authorization: Bearer <acces
 ```text
 src/main/java/org/example/multitenant
 ├── config        Security, password and token configuration
-├── controller    REST endpoints and the console page
+├── controller    REST endpoints
 ├── dto           Request and response records
-├── entity        JPA entities (tenant, user, role, permission, links, tokens, audit)
-├── enums         Tenant type/status, permission scope, disable reasons
+├── entity        JPA entities (tenant, user, role, permission, links, tokens, audit, transfer)
+├── enums         Tenant type/status, permission scope, disable reasons, transfer status
 ├── exception     Custom exceptions and the global error handler
 ├── repository    Spring Data repositories, including the live duty queries
 ├── security      Token filter, authorization manager, annotations, duty checker
-└── service       Business logic for auth, tenants, users, roles, duties, audit
-src/main/resources/db/migration   Flyway migrations V1–V5
+└── service       Business logic for auth, tenants, users, roles, duties, transfers, audit
+src/main/resources/db/migration   Flyway migrations V1–V6
 ```
 
 ## Known limitations and roadmap
 
-- **Not built yet:** the refresh endpoint (`POST /api/auth/refresh`, with rotation and reuse detection) and the sample transfer workflow (submit, then approve with tenant, status, approval-limit and not-your-own checks).
+- **Not built yet:** the refresh endpoint (`POST /api/auth/refresh`, with rotation and reuse detection).
 - **Testing:** an automated integration and negative test suite for the acceptance criteria is still to be added.
 - **Rate limiting:** login and first-password have no rate limit yet. The planned design is a Redis fixed-window counter per IP and per email.
 - **Scale:** request-scoped caching of duty lookups, read replicas, Row-Level Security in PostgreSQL, SSO/SCIM and per-tenant quotas are on the roadmap.

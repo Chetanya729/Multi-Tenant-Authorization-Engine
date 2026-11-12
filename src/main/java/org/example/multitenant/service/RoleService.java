@@ -13,6 +13,7 @@ import org.example.multitenant.exception.ResourceNotFoundException;
 import org.example.multitenant.repository.PermissionRepo;
 import org.example.multitenant.repository.RolePermissionRepo;
 import org.example.multitenant.repository.RoleRepo;
+import org.example.multitenant.repository.UserRoleRepo;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.security.DutyChecker;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,6 +22,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 @Service
@@ -34,14 +36,16 @@ public class RoleService {
     private final AuditService auditService;
     private final PermissionRepo permissionRepo;
     private final DutyChecker dutyChecker;
+    private final UserRoleRepo userRoleRepo;
 
-    public RoleService(RoleRepo roleRepo, ActorService actorService, RolePermissionRepo rolePermissionRepo, AuditService auditService, PermissionRepo permissionRepo, DutyChecker dutyChecker) {
+    public RoleService(RoleRepo roleRepo, ActorService actorService, RolePermissionRepo rolePermissionRepo, AuditService auditService, PermissionRepo permissionRepo, DutyChecker dutyChecker, UserRoleRepo userRoleRepo) {
         this.roleRepo = roleRepo;
         this.actorService = actorService;
         this.rolePermissionRepo = rolePermissionRepo;
         this.auditService = auditService;
         this.permissionRepo = permissionRepo;
         this.dutyChecker = dutyChecker;
+        this.userRoleRepo = userRoleRepo;
     }
 
     @PreAuthorize("@dutyChecker.has('role:create')")
@@ -151,8 +155,33 @@ public class RoleService {
         return codes;
     }
 
+    @PreAuthorize("@dutyChecker.has('role:update')")
+    @Transactional
+    public RoleResponse setApprovalLimit(Long roleId, BigDecimal approvalLimit, AuthenticatedUser actor) {
+        UserEntity actorEntity = actorService.load(actor);
+        TenantEntity tenant = actorEntity.getTenant();
+        RoleEntity role = roleRepo.findByIdAndTenant(roleId, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
+        if (role.isSystem()) {
+            throw new BadRequestException("System roles cannot be changed");
+        }
+        if (userRoleRepo.existsByUserAndRole(actorEntity, role)) {
+            throw new AccessDeniedException("You cannot change the approval limit of a role you hold");
+        }
+        BigDecimal oldLimit = role.getApprovalLimit();
+        role.setApprovalLimit(approvalLimit);
+        roleRepo.save(role);
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("roleName", role.getName());
+        details.put("oldLimit", oldLimit == null ? "none" : oldLimit);
+        details.put("newLimit", approvalLimit == null ? "none" : approvalLimit);
+        auditService.audit(tenant, actorEntity, "ROLE_APPROVAL_LIMIT_CHANGED", "ROLE", String.valueOf(roleId), details);
+        return toResponse(role, activeDutyCodes(role));
+    }
+
     private RoleResponse toResponse(RoleEntity role, Set<String> duties) {
         return new RoleResponse(role.getId(), role.getName(), role.getDescription(), role.isSystem(),
-                role.isActive(), role.getTenant().getId(), duties, role.getCreatedAt());
+                role.isActive(), role.getTenant().getId(), duties, role.getCreatedAt(), role.getApprovalLimit());
     }
 }

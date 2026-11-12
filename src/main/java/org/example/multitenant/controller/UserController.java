@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 
 import org.example.multitenant.dto.Request.DisableUserRequest;
 import org.example.multitenant.dto.Request.UserRequest;
+import org.example.multitenant.dto.Response.PageResponse;
 import org.example.multitenant.dto.Response.UserPermissionResponse;
 import org.example.multitenant.dto.Response.UserResponse;
 import org.example.multitenant.dto.Response.UserStatusResponse;
@@ -32,6 +33,14 @@ public class UserController {
                                                    @AuthenticationPrincipal AuthenticatedUser actor) {
         UserResponse response = userService.createUser(request, actor);
         return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @RequiresPermission("user:read")
+    @GetMapping("/list")
+    public ResponseEntity<PageResponse<UserResponse>> listUsers(@RequestParam(defaultValue = "0") int page,
+                                                                @RequestParam(defaultValue = "20") int size,
+                                                                @AuthenticationPrincipal AuthenticatedUser actor) {
+        return ResponseEntity.ok(userService.listUsers(page, size, actor));
     }
 
     @RequiresPermission("user:read")

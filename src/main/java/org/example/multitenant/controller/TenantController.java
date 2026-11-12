@@ -2,8 +2,10 @@ package org.example.multitenant.controller;
 
 import jakarta.validation.Valid;
 import org.example.multitenant.dto.Request.CreateTenantRequest;
+import org.example.multitenant.dto.Response.PageResponse;
 import org.example.multitenant.dto.Response.TenantResponse;
 import org.example.multitenant.dto.Response.TenantStatusResponse;
+import org.example.multitenant.dto.Response.TenantSummaryResponse;
 import org.example.multitenant.enums.PermissionScope;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.security.RequiresPermission;
@@ -27,6 +29,13 @@ public class TenantController {
     public ResponseEntity<TenantResponse> createTenants(@Valid @RequestBody CreateTenantRequest request,
                                                         @AuthenticationPrincipal AuthenticatedUser actor) {
         return ResponseEntity.ok().body(tenantService.createTenant(request,actor));
+    }
+
+    @GetMapping("/list")
+    @RequiresPermission(value = "tenant:read", scope = PermissionScope.PLATFORM)
+    public ResponseEntity<PageResponse<TenantSummaryResponse>> listTenants(@RequestParam(defaultValue = "0") int page,
+                                                                           @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(tenantService.listTenants(page, size));
     }
 
     @PostMapping("/{tenantId}/suspend")

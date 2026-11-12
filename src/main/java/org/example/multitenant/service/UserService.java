@@ -4,6 +4,7 @@ import org.example.multitenant.config.TokenProperties;
 import org.example.multitenant.dto.Request.DisableUserRequest;
 import org.example.multitenant.dto.Request.UserRequest;
 import org.example.multitenant.dto.Response.MeResponse;
+import org.example.multitenant.dto.Response.PageResponse;
 import org.example.multitenant.dto.Response.UserPermissionResponse;
 import org.example.multitenant.dto.Response.UserResponse;
 import org.example.multitenant.dto.Response.UserStatusResponse;
@@ -17,6 +18,7 @@ import org.example.multitenant.repository.*;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.example.multitenant.security.DutyChecker;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -115,6 +117,31 @@ public class UserService {
     }
 
 
+
+    @PreAuthorize("@dutyChecker.has('user:read')")
+    @Transactional(readOnly = true)
+    public PageResponse<UserResponse> listUsers(int page, int size, AuthenticatedUser actor) {
+        if (page < 0) {
+            throw new BadRequestException("Page must be 0 or greater");
+        }
+        if (size < 1 || size > 100) {
+            throw new BadRequestException("Page size must be between 1 and 100");
+        }
+        TenantEntity tenant = actorService.load(actor).getTenant();
+        return PageResponse.from(userRepo.findAllByTenantOrderByCreatedAtDesc(tenant, PageRequest.of(page, size)),
+                this::toUserResponse);
+    }
+
+    private UserResponse toUserResponse(UserEntity user) {
+        Set<String> roleNames = new TreeSet<>();
+        for (UserRoleEntity userRole : userRoleRepo.findAllByUser(user)) {
+            if (userRole.getRole().isActive()) {
+                roleNames.add(userRole.getRole().getName());
+            }
+        }
+        return new UserResponse(user.getId(), user.getEmail(), user.getTenant().getId(), user.isEnabled(),
+                user.isTemporaryPassword(), user.getTempPassExpiryAt(), roleNames, user.getCreatedAt());
+    }
 
     @PreAuthorize("@dutyChecker.has('user:read')")
     @Transactional(readOnly = true)

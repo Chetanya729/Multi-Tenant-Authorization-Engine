@@ -2,6 +2,7 @@ package org.example.multitenant.controller;
 
 
 import jakarta.validation.Valid;
+import org.example.multitenant.dto.Request.ApprovalLimitRequest;
 import org.example.multitenant.dto.Request.RoleRequest;
 import org.example.multitenant.dto.Response.RoleResponse;
 import org.example.multitenant.security.AuthenticatedUser;
@@ -46,5 +47,13 @@ public class RoleController {
     public ResponseEntity<RoleResponse> revokeDuties(@PathVariable Long roleId, @PathVariable Long permissionId,
                                                      @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
         return ResponseEntity.ok(roleService.revokeDuty(roleId, permissionId, authenticatedUser));
+    }
+
+    @RequiresPermission("role:update")
+    @PutMapping("/{roleId}/approval-limit")
+    public ResponseEntity<RoleResponse> setApprovalLimit(@PathVariable Long roleId,
+                                                         @Valid @RequestBody ApprovalLimitRequest request,
+                                                         @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+        return ResponseEntity.ok(roleService.setApprovalLimit(roleId, request.approvalLimit(), authenticatedUser));
     }
 }

@@ -3,8 +3,10 @@ package org.example.multitenant.service;
 
 import org.example.multitenant.config.TokenProperties;
 import org.example.multitenant.dto.Request.CreateTenantRequest;
+import org.example.multitenant.dto.Response.PageResponse;
 import org.example.multitenant.dto.Response.TenantResponse;
 import org.example.multitenant.dto.Response.TenantStatusResponse;
+import org.example.multitenant.dto.Response.TenantSummaryResponse;
 import org.example.multitenant.entity.*;
 import org.example.multitenant.enums.PermissionScope;
 import org.example.multitenant.enums.TenantStatus;
@@ -15,6 +17,8 @@ import org.example.multitenant.exception.ResourceNotFoundException;
 import org.example.multitenant.repository.*;
 import org.example.multitenant.security.AuthenticatedUser;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -142,6 +146,21 @@ public class TenantService {
                 savedTenant.getCreatedAt());
     }
 
+
+    @PreAuthorize("@dutyChecker.hasPlatform('tenant:read')")
+    @Transactional(readOnly = true)
+    public PageResponse<TenantSummaryResponse> listTenants(int page, int size) {
+        if (page < 0) {
+            throw new BadRequestException("Page must be 0 or greater");
+        }
+        if (size < 1 || size > 100) {
+            throw new BadRequestException("Page size must be between 1 and 100");
+        }
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return PageResponse.from(tenantRepo.findAll(pageRequest), tenant -> new TenantSummaryResponse(
+                tenant.getId(), tenant.getName(), tenant.getSlug(), tenant.getType(), tenant.getStatus(),
+                userRepo.countByTenant(tenant), tenant.getCreatedAt()));
+    }
 
     @PreAuthorize("@dutyChecker.hasPlatform('tenant:suspend')")
     @Transactional
