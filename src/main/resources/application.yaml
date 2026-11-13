@@ -52,7 +52,7 @@ app:
       password: ${PLATFORM_ADMIN_PASSWORD:}
   security:
     tokens:
-      access-token-ttl: ${ACCESS_TOKEN_TTL:5m}
+      access-token-ttl: ${ACCESS_TOKEN_TTL:15m}
       refresh-token-ttl: 7d
       temporary-password-ttl: 24h
   cors:
