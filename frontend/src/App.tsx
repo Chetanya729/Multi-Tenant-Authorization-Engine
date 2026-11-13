@@ -1,6 +1,8 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes } from "react-router";
+import { ApiError } from "./api/client";
 import { useAuth } from "./auth/AuthContext";
+import { Button } from "./components/ui/Button";
 import { AppShell } from "./components/layout/AppShell";
 import { NAV } from "./components/layout/nav";
 import { Card } from "./components/ui/Layout";
@@ -32,10 +34,29 @@ function Guard({ path, children }: { path?: string; children: ReactNode }) {
 }
 
 function Protected() {
-  const { session, me, meLoading } = useAuth();
+  const { session, me, meLoading, meError, meRetrying, retryMe, logout } = useAuth();
   if (!session) return <Navigate to="/login" replace />;
-  if (meLoading || !me) return <div className="flex min-h-dvh items-center justify-center"><Spinner /></div>;
-  return <AppShell />;
+  if (me) return <AppShell />;
+  // Without this, a failed /api/me (server down, network error) left the user on a spinner forever.
+  // A 401 never reaches here: it ends the session and returns to the sign-in page.
+  if (meError && !meLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-slate-50 px-4 dark:bg-slate-900">
+        <div className="card w-full max-w-sm p-6 text-center">
+          <h1 className="text-base font-semibold">Couldn't load your account</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {/* 0 = network failure; 502/503/504 = a proxy or hosting edge in front of a server that is down. */}
+            {meError instanceof ApiError && [0, 502, 503, 504].includes(meError.status) ? "The server can't be reached right now." : "Something went wrong on the server."}
+          </p>
+          <div className="mt-5 flex justify-center gap-2">
+            <Button variant="secondary" onClick={() => void logout()}>Sign out</Button>
+            <Button loading={meRetrying} onClick={retryMe}>Retry</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return <div className="flex min-h-dvh items-center justify-center"><Spinner /></div>;
 }
 
 export function App() {

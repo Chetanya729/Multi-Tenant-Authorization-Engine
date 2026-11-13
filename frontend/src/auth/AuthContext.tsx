@@ -10,6 +10,10 @@ interface AuthState {
   session: Session | null;
   me: Me | undefined;
   meLoading: boolean;
+  /** Set when the account details (/api/me) could not be loaded and nothing was loaded before. */
+  meError: unknown;
+  meRetrying: boolean;
+  retryMe: () => void;
   notice: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -95,13 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     me,
     meLoading: !!session && meQuery.isPending,
+    meError: session && !meQuery.data ? meQuery.error : null,
+    meRetrying: meQuery.isFetching,
+    retryMe: () => void meQuery.refetch(),
     notice,
     login,
     logout,
     clearNotice: () => setNotice(null),
     can: (duty) => hasDuty(me, duty),
     canPlatform: (duty) => hasPlatformDuty(me, duty),
-  }), [session, me, meQuery.isPending, notice, login, logout]);
+  }), [session, me, meQuery, notice, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

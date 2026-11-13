@@ -35,3 +35,5 @@ build/
 # Ignore a specific file inside a specific folder
 src/main/resources/application-local.yaml
 dump.rdb
+# Local environment variables for Docker (contains passwords)
+.env

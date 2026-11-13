@@ -10,6 +10,8 @@ COPY mvnw pom.xml ./
 RUN chmod +x mvnw && ./mvnw -B -q -Dfrontend.skip=true dependency:go-offline
 
 COPY src/ src/
+
+# Compile the java application
 RUN ./mvnw -B -q -DskipTests -Dfrontend.skip=true package \
     && cp target/Multi-Tenant-*.jar app.jar
 

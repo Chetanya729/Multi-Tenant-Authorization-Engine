@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { auditApi, tenantApi, transferApi, userApi } from "../api/endpoints";
 import type { Transfer } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { NAV } from "../components/layout/nav";
 import { auditTone } from "../components/StatusBadge";
 import { Badge } from "../components/ui/Badge";
 import { Card, PageHeader, StatCard } from "../components/ui/Layout";
@@ -47,7 +48,7 @@ function dailyApproved(items: Transfer[]) {
 const show = (n: number | undefined, loading: boolean) => (loading ? <Skeleton className="mt-1 h-6 w-10" /> : n ?? "—");
 
 export function OverviewPage() {
-  const { can, canPlatform } = useAuth();
+  const { me, can, canPlatform } = useAuth();
   const navigate = useNavigate();
   const readAll = can("transfer:read");
   const approver = can("transfer:approve") && readAll;
@@ -73,6 +74,52 @@ export function OverviewPage() {
   const approvedTotal = sameCurrency.filter((t) => t.status === "APPROVED").reduce((s, t) => s + t.amount, 0);
   const mineCount = (s: string) => (mine.data?.items ?? []).filter((t) => t.status === s).length;
   const userItems = users.data?.items ?? [];
+
+  // Pages this user can open besides Overview. A new user often has none: no role yet, or a role with no permissions.
+  const otherPages = me ? NAV.filter((item) => item.to !== "/" && item.visible(me)) : [];
+  const hasOverviewContent = readAll || submits || readUsers || readAudit || readOrgs;
+
+  if (otherPages.length === 0) {
+    const roles = me?.roles ?? [];
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Overview" />
+        <Card>
+          <EmptyState
+            title="You don't have access to anything yet"
+            description={
+              <>
+                {roles.length
+                  ? `Your role${roles.length > 1 ? "s" : ""} (${roles.map(humanize).join(", ")}) ${roles.length > 1 ? "don't" : "doesn't"} include any permissions yet.`
+                  : "No role has been assigned to your account yet."}{" "}
+                Ask your administrator for access. This page updates automatically once it is granted.
+              </>
+            }
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  if (!hasOverviewContent) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Overview" />
+        <Card title="Your pages" padded={false}>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-700/60">
+            {otherPages.map((item) => (
+              <li key={item.to}>
+                <Link to={item.to} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                  <item.icon className="size-4 text-slate-400" />
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
